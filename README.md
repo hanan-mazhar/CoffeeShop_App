@@ -187,7 +187,7 @@ screenshots/
 
 **Muhammad Hanan Mazhar**
 
-📧 Email: [your-email@example.com](mailto:your-email@example.com)
+📧 Email: [hananmazhar01@gmail.com](mailto:hananmazhar01@gmail.com)
 
 ---
 
