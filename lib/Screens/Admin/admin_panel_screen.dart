@@ -1,14 +1,15 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../Models/coffee_model.dart';
 import '../../Models/order_model.dart';
 import '../../Services/auth_service.dart';
+import '../../Services/cloudinary_service.dart';
 import '../../Services/coffee_service.dart';
 import '../../Services/order_service.dart';
 import '../../Services/payment_service.dart';
 import '../Auth/login_screen.dart';
+ import 'dart:convert';
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
@@ -54,7 +55,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.deepOrange.withOpacity(0.2),
+                color: Colors.deepOrange.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.admin_panel_settings,
@@ -122,7 +123,9 @@ class _PaymentSettingsTab extends StatefulWidget {
 
 class _PaymentSettingsTabState extends State<_PaymentSettingsTab> {
   final _jazzController = TextEditingController();
+  final _jazzNameController = TextEditingController();
   final _easyController = TextEditingController();
+  final _easyNameController = TextEditingController();
   bool _loading = true;
   bool _saving = false;
 
@@ -137,7 +140,9 @@ class _PaymentSettingsTabState extends State<_PaymentSettingsTab> {
     if (mounted) {
       setState(() {
         _jazzController.text = numbers['jazzcash'] ?? '';
+        _jazzNameController.text = numbers['jazzcash_name'] ?? '';
         _easyController.text = numbers['easypaisa'] ?? '';
+        _easyNameController.text = numbers['easypaisa_name'] ?? '';
         _loading = false;
       });
     }
@@ -145,15 +150,26 @@ class _PaymentSettingsTabState extends State<_PaymentSettingsTab> {
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    await PaymentService().updatePaymentNumbers(
-      jazzcash: _jazzController.text.trim(),
-      easypaisa: _easyController.text.trim(),
-    );
-    setState(() => _saving = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Payment numbers updated successfully ✅'),
-          backgroundColor: Colors.green));
+    try {
+      await PaymentService().updatePaymentNumbers(
+        jazzcash: _jazzController.text.trim(),
+        jazzcashName: _jazzNameController.text.trim(),
+        easypaisa: _easyController.text.trim(),
+        easypaisaName: _easyNameController.text.trim(),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Payment numbers updated successfully ✅'),
+            backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Error saving: $e'),
+            backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -187,6 +203,8 @@ class _PaymentSettingsTabState extends State<_PaymentSettingsTab> {
             title: 'JazzCash Number',
             controller: _jazzController,
             hint: 'e.g. 03001234567',
+            nameController: _jazzNameController,
+            nameHint: 'e.g. Muhammad Ali',
           ),
           const SizedBox(height: 16),
 
@@ -197,6 +215,8 @@ class _PaymentSettingsTabState extends State<_PaymentSettingsTab> {
             title: 'EasyPaisa Number',
             controller: _easyController,
             hint: 'e.g. 03211234567',
+            nameController: _easyNameController,
+            nameHint: 'e.g. Muhammad Ali',
           ),
           const SizedBox(height: 28),
 
@@ -234,13 +254,15 @@ class _PaymentSettingsTabState extends State<_PaymentSettingsTab> {
     required String title,
     required TextEditingController controller,
     required String hint,
+    required TextEditingController nameController,
+    required String nameHint,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,6 +284,26 @@ class _PaymentSettingsTabState extends State<_PaymentSettingsTab> {
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: const TextStyle(color: Colors.white30),
+              labelText: 'Phone Number',
+              labelStyle: const TextStyle(color: Colors.white54, fontSize: 12),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.white24)),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: color)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: nameController,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            decoration: InputDecoration(
+              hintText: nameHint,
+              hintStyle: const TextStyle(color: Colors.white30),
+              labelText: 'Account Name',
+              labelStyle: const TextStyle(color: Colors.white54, fontSize: 12),
+              prefixIcon: Icon(Icons.person_outline, color: color, size: 18),
               enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: Colors.white24)),
@@ -278,7 +320,9 @@ class _PaymentSettingsTabState extends State<_PaymentSettingsTab> {
   @override
   void dispose() {
     _jazzController.dispose();
+    _jazzNameController.dispose();
     _easyController.dispose();
+    _easyNameController.dispose();
     super.dispose();
   }
 }
@@ -338,9 +382,9 @@ class _ProofCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.07),
+        color: Colors.white.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange.withOpacity(0.4)),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -352,9 +396,9 @@ class _ProofCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: methodColor.withOpacity(0.15),
+                  color: methodColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: methodColor.withOpacity(0.5)),
+                  border: Border.all(color: methodColor.withValues(alpha: 0.5)),
                 ),
                 child: Text(methodName,
                     style: TextStyle(
@@ -367,7 +411,7 @@ class _ProofCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.15),
+                  color: Colors.orange.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Text('Pending Verification',
@@ -397,11 +441,11 @@ class _ProofCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // Proof image
-          if (record.proofImageBase64 != null &&
-              record.proofImageBase64!.isNotEmpty) ...[
+          // Proof image — now loaded from Cloudinary URL
+          if (record.proofImageUrl != null &&
+              record.proofImageUrl!.isNotEmpty) ...[
             GestureDetector(
-              onTap: () => _viewFullImage(context, record.proofImageBase64!),
+              onTap: () => _viewFullImage(context, record.proofImageUrl!),
               child: Container(
                 width: double.infinity,
                 height: 160,
@@ -414,10 +458,7 @@ class _ProofCard extends StatelessWidget {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      Image.memory(
-                        base64Decode(record.proofImageBase64!),
-                        fit: BoxFit.cover,
-                      ),
+                      _buildProofImage(record.proofImageUrl!),
                       Positioned(
                         bottom: 6,
                         right: 6,
@@ -472,14 +513,46 @@ class _ProofCard extends StatelessWidget {
     );
   }
 
-  void _viewFullImage(BuildContext context, String base64) {
+  /// Renders proof image: Cloudinary URL → Image.network, otherwise legacy base64
+  Widget _buildProofImage(String imageData) {
+    if (CloudinaryService.isNetworkUrl(imageData)) {
+      return Image.network(
+        imageData,
+        fit: BoxFit.cover,
+        loadingBuilder: (_, child, progress) => progress == null
+            ? child
+            : const Center(
+                child: CircularProgressIndicator(color: Colors.deepOrange)),
+        errorBuilder: (_, _, _) => const Center(
+            child: Icon(Icons.broken_image, color: Colors.white30, size: 40)),
+      );
+    }
+    // Legacy base64 fallback
+    try {
+     
+      final bytes = base64Decode(imageData);
+      return Image.memory(bytes, fit: BoxFit.cover);
+    } catch (_) {
+      return const Center(
+          child: Icon(Icons.broken_image, color: Colors.white30, size: 40));
+    }
+  }
+
+  void _viewFullImage(BuildContext context, String imageData) {
     showDialog(
       context: context,
       builder: (_) => Dialog(
         backgroundColor: Colors.black,
         insetPadding: const EdgeInsets.all(12),
         child: InteractiveViewer(
-          child: Image.memory(base64Decode(base64)),
+          child: CloudinaryService.isNetworkUrl(imageData)
+              ? Image.network(imageData,
+                  loadingBuilder: (_, child, progress) => progress == null
+                      ? child
+                      : const Center(
+                          child: CircularProgressIndicator(
+                              color: Colors.deepOrange)))
+              : Image.memory(base64Decode(imageData)),
         ),
       ),
     );
@@ -567,7 +640,7 @@ class _AdminCoffeeCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.07),
+        color: Colors.white.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white12),
       ),
@@ -575,7 +648,7 @@ class _AdminCoffeeCard extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: _buildImage(coffee.image, 65),
+            child: _buildCoffeeImage(coffee.image, 65),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -635,7 +708,19 @@ class _AdminCoffeeCard extends StatelessWidget {
     );
   }
 
-  Widget _buildImage(String path, double size) {
+  /// Smart image widget: Cloudinary URL → Image.network, asset → Image.asset
+  static Widget _buildCoffeeImage(String path, double size) {
+    if (CloudinaryService.isNetworkUrl(path)) {
+      return Image.network(
+        path,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        loadingBuilder: (_, child, progress) =>
+            progress == null ? child : _placeholder(size),
+        errorBuilder: (_, _, _) => _placeholder(size),
+      );
+    }
     if (path.startsWith('/')) {
       return Image.file(File(path),
           width: size, height: size, fit: BoxFit.cover,
@@ -646,11 +731,11 @@ class _AdminCoffeeCard extends StatelessWidget {
         errorBuilder: (_, _, _) => _placeholder(size));
   }
 
-  Widget _placeholder(double size) {
+  static Widget _placeholder(double size) {
     return Container(
         width: size,
         height: size,
-        color: Colors.deepOrange.withOpacity(0.2),
+        color: Colors.deepOrange.withValues(alpha: 0.2),
         child: const Icon(Icons.coffee, color: Colors.deepOrange));
   }
 
@@ -700,6 +785,7 @@ class _AddCoffeeDialogState extends State<_AddCoffeeDialog> {
   String _imagePath = 'assets/images/Coffee1.jpg';
   File? _pickedFile;
   bool _saving = false;
+  bool _uploading = false;
 
   final _assetImages = [
     'assets/images/Coffee1.jpg',
@@ -708,6 +794,14 @@ class _AddCoffeeDialogState extends State<_AddCoffeeDialog> {
     'assets/images/Coffee4.jpg',
     'assets/images/Coffee5.jpg',
     'assets/images/Coffee6.jpg',
+    'assets/images/Coffee7.jpg',
+    'assets/images/Coffee8.jpg',
+    'assets/images/Coffee9.jpg',
+    'assets/images/Coffee10.jpg',
+    'assets/images/Coffee11.jpg',
+    'assets/images/Coffee12.jpg',
+    'assets/images/Coffee13.jpg',
+    'assets/images/Coffee14.jpg',
   ];
 
   Future<void> _pickImage() async {
@@ -820,10 +914,30 @@ class _AddCoffeeDialogState extends State<_AddCoffeeDialog> {
       return;
     }
     setState(() => _saving = true);
+
+    String finalImagePath = _imagePath;
+
+    // If user picked a file from gallery/camera, upload to Cloudinary
+    if (_pickedFile != null) {
+      setState(() => _uploading = true);
+      final url = await CloudinaryService.uploadImage(_pickedFile!);
+      setState(() => _uploading = false);
+      if (url != null) {
+        finalImagePath = url;
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Image upload failed. Using default image.'),
+              backgroundColor: Colors.orange));
+        }
+        finalImagePath = _assetImages[0];
+      }
+    }
+
     final coffee = CoffeeModel(
       id: '',
       name: _nameC.text.trim(),
-      image: _imagePath,
+      image: finalImagePath,
       price: double.tryParse(_priceC.text) ?? 0,
       type: _type,
       description: _descC.text.trim(),
@@ -857,61 +971,74 @@ class _AddCoffeeDialogState extends State<_AddCoffeeDialog> {
                 width: double.infinity,
                 height: 150,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                      color: Colors.deepOrange.withOpacity(0.5),
+                      color: Colors.deepOrange.withValues(alpha: 0.5),
                       width: 1.5),
                 ),
-                child: _pickedFile != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Image.file(_pickedFile!,
-                            fit: BoxFit.cover, width: double.infinity))
-                    : _imagePath.startsWith('assets')
+                child: _uploading
+                    ? const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(color: Colors.deepOrange),
+                            SizedBox(height: 8),
+                            Text('Uploading to Cloudinary...',
+                                style: TextStyle(
+                                    color: Colors.white60, fontSize: 13)),
+                          ],
+                        ),
+                      )
+                    : _pickedFile != null
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(14),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                Image.asset(_imagePath, fit: BoxFit.cover),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.black38,
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
+                            child: Image.file(_pickedFile!,
+                                fit: BoxFit.cover, width: double.infinity))
+                        : _imagePath.startsWith('assets')
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Image.asset(_imagePath, fit: BoxFit.cover),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black38,
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                    const Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.edit,
+                                              color: Colors.white, size: 28),
+                                          SizedBox(height: 4),
+                                          Text('Tap to change image',
+                                              style: TextStyle(
+                                                  color: Colors.white70,
+                                                  fontSize: 13)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.edit,
-                                          color: Colors.white, size: 28),
-                                      SizedBox(height: 4),
-                                      Text('Tap to change image',
-                                          style: TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 13)),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add_photo_alternate,
-                                  color: Colors.deepOrange, size: 40),
-                              SizedBox(height: 8),
-                              Text('Tap to select image',
-                                  style: TextStyle(
-                                      color: Colors.white60, fontSize: 14)),
-                              Text('Gallery • Camera • Default',
-                                  style: TextStyle(
-                                      color: Colors.white38, fontSize: 12)),
-                            ],
-                          ),
+                              )
+                            : const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_photo_alternate,
+                                      color: Colors.deepOrange, size: 40),
+                                  SizedBox(height: 8),
+                                  Text('Tap to select image',
+                                      style: TextStyle(
+                                          color: Colors.white60, fontSize: 14)),
+                                  Text('Gallery • Camera • Default',
+                                      style: TextStyle(
+                                          color: Colors.white38, fontSize: 12)),
+                                ],
+                              ),
               ),
             ),
             const SizedBox(height: 14),
@@ -1022,6 +1149,7 @@ class _EditCoffeeDialogState extends State<_EditCoffeeDialog> {
   File? _pickedFile;
   late String _imagePath;
   bool _saving = false;
+  bool _uploading = false;
 
   @override
   void initState() {
@@ -1046,12 +1174,32 @@ class _EditCoffeeDialogState extends State<_EditCoffeeDialog> {
 
   void _save() async {
     setState(() => _saving = true);
+
+    String finalImagePath = _imagePath;
+
+    // Upload new image to Cloudinary if user picked one
+    if (_pickedFile != null) {
+      setState(() => _uploading = true);
+      final url = await CloudinaryService.uploadImage(_pickedFile!);
+      setState(() => _uploading = false);
+      if (url != null) {
+        finalImagePath = url;
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Image upload failed. Keeping existing image.'),
+              backgroundColor: Colors.orange));
+        }
+        finalImagePath = widget.coffee.image;
+      }
+    }
+
     await CoffeeService().updateCoffee(widget.coffee.id, {
       'name': _nameC.text.trim(),
       'price': double.tryParse(_priceC.text) ?? widget.coffee.price,
       'description': _descC.text.trim(),
       'type': _type,
-      'image': _imagePath,
+      'image': finalImagePath,
     });
     if (mounted) Navigator.pop(context);
   }
@@ -1083,33 +1231,55 @@ class _EditCoffeeDialogState extends State<_EditCoffeeDialog> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                      color: Colors.deepOrange.withOpacity(0.5)),
+                      color: Colors.deepOrange.withValues(alpha: 0.5)),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(14),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      _pickedFile != null
-                          ? Image.file(_pickedFile!, fit: BoxFit.cover)
-                          : _imagePath.startsWith('/')
-                              ? Image.file(File(_imagePath),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) =>
-                                      Image.asset('assets/images/Coffee1.jpg',
-                                          fit: BoxFit.cover))
-                              : Image.asset(_imagePath, fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Container(
-                                      color: Colors.deepOrange.withOpacity(0.2))),
+                      if (_uploading)
+                        const Center(
+                          child: CircularProgressIndicator(
+                              color: Colors.deepOrange),
+                        )
+                      else if (_pickedFile != null)
+                        Image.file(_pickedFile!, fit: BoxFit.cover)
+                      else if (CloudinaryService.isNetworkUrl(_imagePath))
+                        Image.network(
+                          _imagePath,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (_, child, progress) =>
+                              progress == null
+                                  ? child
+                                  : const Center(
+                                      child: CircularProgressIndicator(
+                                          color: Colors.deepOrange)),
+                          errorBuilder: (_, _, _) => Image.asset(
+                              'assets/images/Coffee1.jpg',
+                              fit: BoxFit.cover),
+                        )
+                      else if (_imagePath.startsWith('/'))
+                        Image.file(File(_imagePath),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Image.asset(
+                                'assets/images/Coffee1.jpg',
+                                fit: BoxFit.cover))
+                      else
+                        Image.asset(_imagePath, fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Container(
+                                color: Colors.deepOrange.withValues(alpha: 0.2))),
                       Container(color: Colors.black38),
                       const Center(
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.photo_library, color: Colors.white, size: 20),
+                            Icon(Icons.photo_library,
+                                color: Colors.white, size: 20),
                             SizedBox(width: 6),
                             Text('Change Image',
-                                style: TextStyle(color: Colors.white, fontSize: 14)),
+                                style: TextStyle(
+                                    color: Colors.white, fontSize: 14)),
                           ],
                         ),
                       ),
@@ -1290,7 +1460,7 @@ class _AdminOrderCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.07),
+        color: Colors.white.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white12),
       ),
@@ -1311,9 +1481,9 @@ class _AdminOrderCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.2),
+                  color: statusColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: statusColor.withOpacity(0.5)),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.5)),
                 ),
                 child: Text(
                   _statusLabels[order.status] ?? order.status,
@@ -1327,7 +1497,6 @@ class _AdminOrderCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
 
-          // Payment method + status
           Row(
             children: [
               Icon(
@@ -1389,10 +1558,10 @@ class _AdminOrderCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: Colors.deepOrange.withOpacity(0.1),
+              color: Colors.deepOrange.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
               border:
-                  Border.all(color: Colors.deepOrange.withOpacity(0.4)),
+                  Border.all(color: Colors.deepOrange.withValues(alpha: 0.4)),
             ),
             child: Row(
               children: [

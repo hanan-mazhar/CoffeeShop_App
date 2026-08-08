@@ -1,6 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../Services/auth_service.dart';
+import '../Services/cloudinary_service.dart';
 import '../Services/payment_service.dart';
 
 class PaymentHistoryScreen extends StatelessWidget {
@@ -109,7 +109,7 @@ class _PaymentCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.07),
+        color: Colors.white.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white12),
       ),
@@ -122,7 +122,7 @@ class _PaymentCard extends StatelessWidget {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: methodColor.withOpacity(0.15),
+                  color: methodColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(methodIcon, color: methodColor),
@@ -166,7 +166,7 @@ class _PaymentCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.15),
+                      color: statusColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -187,7 +187,7 @@ class _PaymentCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.04),
+                color: Colors.white.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -202,9 +202,9 @@ class _PaymentCard extends StatelessWidget {
             ),
           ],
 
-          // Show proof thumbnail if available
-          if (record.proofImageBase64 != null &&
-              record.proofImageBase64!.isNotEmpty) ...[
+          // Show proof thumbnail — now uses Cloudinary URL via Image.network
+          if (record.proofImageUrl != null &&
+              record.proofImageUrl!.isNotEmpty) ...[
             const SizedBox(height: 10),
             Row(
               children: [
@@ -215,7 +215,7 @@ class _PaymentCard extends StatelessWidget {
                     style: TextStyle(color: Colors.white38, fontSize: 12)),
                 const Spacer(),
                 GestureDetector(
-                  onTap: () => _viewProof(context, record.proofImageBase64!),
+                  onTap: () => _viewProof(context, record.proofImageUrl!),
                   child: const Text('View',
                       style: TextStyle(
                           color: Colors.deepOrange,
@@ -230,14 +230,28 @@ class _PaymentCard extends StatelessWidget {
     );
   }
 
-  void _viewProof(BuildContext context, String base64) {
+  void _viewProof(BuildContext context, String imageData) {
     showDialog(
       context: context,
       builder: (_) => Dialog(
         backgroundColor: Colors.black,
         insetPadding: const EdgeInsets.all(12),
         child: InteractiveViewer(
-          child: Image.memory(base64Decode(base64)),
+          child: CloudinaryService.isNetworkUrl(imageData)
+              ? Image.network(
+                  imageData,
+                  loadingBuilder: (_, child, progress) => progress == null
+                      ? child
+                      : const Center(
+                          child: CircularProgressIndicator(
+                              color: Colors.deepOrange)),
+                  errorBuilder: (_, _, _) => const Center(
+                      child: Icon(Icons.broken_image,
+                          color: Colors.white30, size: 60)),
+                )
+              : const Center(
+                  child: Text('Image not available',
+                      style: TextStyle(color: Colors.white54))),
         ),
       ),
     );

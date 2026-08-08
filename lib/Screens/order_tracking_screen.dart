@@ -66,7 +66,7 @@ class _OrderCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.07),
+          color: Colors.white.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: Colors.white12),
         ),
@@ -167,10 +167,10 @@ class OrderTrackingScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Colors.deepOrange.withOpacity(0.3), Colors.brown.withOpacity(0.3)],
+                      colors: [Colors.deepOrange.withValues(alpha: 0.3), Colors.brown.withValues(alpha: 0.3)],
                     ),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.deepOrange.withOpacity(0.4)),
+                    border: Border.all(color: Colors.deepOrange.withValues(alpha: 0.4)),
                   ),
                   child: Column(
                     children: [
@@ -204,7 +204,7 @@ class OrderTrackingScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.07),
+                    color: Colors.white.withValues(alpha: 0.07),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.white12),
                   ),
@@ -323,7 +323,7 @@ class _TrackingSteps extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: done
                         ? Colors.deepOrange
-                        : Colors.white.withOpacity(0.1),
+                        : Colors.white.withValues(alpha: 0.1),
                     border: Border.all(
                         color: active ? Colors.deepOrange : Colors.white12,
                         width: active ? 2 : 1),
@@ -382,9 +382,9 @@ class _StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(labels[status] ?? status,
           style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),

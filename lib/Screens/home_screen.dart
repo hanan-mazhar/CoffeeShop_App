@@ -1,3 +1,4 @@
+import 'package:coffee_shop/Screens/notifcations_screen.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +10,8 @@ import 'Products/coffee_grid.dart';
 import 'cart_screen.dart';
 import 'profile_screen.dart';
 import 'order_tracking_screen.dart';
+import '../Services/notification_service.dart';
+// import 'notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -158,8 +161,47 @@ class _HomeTabState extends State<_HomeTab> {
                           )
                         : const SizedBox(),
                   ),
-                  Icon(Icons.notifications_outlined,
-                      color: Colors.white60, size: isSmall ? 24 : 30),
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen()),
+                    ),
+                    child: StreamBuilder<int>(
+                      stream: NotificationService().unreadCountStream(
+                          AuthService().currentUser?.uid ?? ''),
+                      builder: (context, snap) {
+                        final count = snap.data ?? 0;
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Icon(Icons.notifications_outlined,
+                                color: Colors.white60,
+                                size: isSmall ? 24 : 30),
+                            if (count > 0)
+                              Positioned(
+                                right: -4,
+                                top: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.deepOrange,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Text(
+                                    count > 9 ? '9+' : '$count',
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -205,7 +247,7 @@ class _HomeTabState extends State<_HomeTab> {
           child: Container(
             height: 48,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
+              color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(30),
               border: Border.all(color: Colors.white12),
             ),

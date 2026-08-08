@@ -1,12 +1,10 @@
 import 'package:coffee_shop/Models/coffee_model.dart';
 import 'package:coffee_shop/Models/order_model.dart';
 import 'package:coffee_shop/Services/cart_provider.dart';
+import 'package:coffee_shop/Services/cloudinary_service.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// import '../Models/coffee_model.dart';
-// import '../Models/order_model.dart';
-// import '../Services/cart_provider.dart';
 
 class ProductViewScreen extends StatefulWidget {
   final CoffeeModel coffee;
@@ -42,6 +40,15 @@ class _ProductViewScreenState extends State<ProductViewScreen> {
     );
   }
 
+  /// Returns the correct ImageProvider based on whether the image is a
+  /// Cloudinary URL or a local asset path.
+  ImageProvider _imageProvider(String path) {
+    if (CloudinaryService.isNetworkUrl(path)) {
+      return NetworkImage(path);
+    }
+    return AssetImage(path);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -56,9 +63,51 @@ class _ProductViewScreenState extends State<ProductViewScreen> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   image: DecorationImage(
-                    image: AssetImage(widget.coffee.image),
+                    image: _imageProvider(widget.coffee.image),
                     fit: BoxFit.cover,
+                    onError: (_, _) {}, // silently fall through to child
                   ),
+                ),
+                // Fallback shown while network image loads or on error
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: CloudinaryService.isNetworkUrl(widget.coffee.image)
+                      ? Image.network(
+                          widget.coffee.image,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                          loadingBuilder: (_, child, progress) =>
+                              progress == null
+                                  ? child
+                                  : Container(
+                                      color: Colors.deepOrange.withValues(alpha: 0.1),
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                            color: Colors.deepOrange),
+                                      ),
+                                    ),
+                          errorBuilder: (_, _, _) => Container(
+                            color: Colors.deepOrange.withValues(alpha: 0.2),
+                            child: const Center(
+                              child: Icon(Icons.coffee,
+                                  color: Colors.deepOrange, size: 64),
+                            ),
+                          ),
+                        )
+                      : Image.asset(
+                          widget.coffee.image,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                          errorBuilder: (_, _, _) => Container(
+                            color: Colors.deepOrange.withValues(alpha: 0.2),
+                            child: const Center(
+                              child: Icon(Icons.coffee,
+                                  color: Colors.deepOrange, size: 64),
+                            ),
+                          ),
+                        ),
                 ),
               ),
               Positioned(
@@ -74,7 +123,8 @@ class _ProductViewScreenState extends State<ProductViewScreen> {
                   ),
                   child: IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+                    icon: const Icon(Icons.arrow_back_ios_new,
+                        color: Colors.white, size: 20),
                   ),
                 ),
               ),
@@ -87,17 +137,21 @@ class _ProductViewScreenState extends State<ProductViewScreen> {
                       ? GestureDetector(
                           onTap: () => Navigator.pushNamed(context, '/cart'),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
                               color: Colors.deepOrange,
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.shopping_cart, color: Colors.white, size: 18),
+                                const Icon(Icons.shopping_cart,
+                                    color: Colors.white, size: 18),
                                 const SizedBox(width: 4),
                                 Text('${cart.itemCount}',
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold)),
                               ],
                             ),
                           ),
@@ -115,45 +169,55 @@ class _ProductViewScreenState extends State<ProductViewScreen> {
                 children: [
                   Text(widget.coffee.type,
                       style: const TextStyle(
-                          color: Colors.white70, fontSize: 14, letterSpacing: 4)),
+                          color: Colors.white70,
+                          fontSize: 14,
+                          letterSpacing: 4)),
                   const SizedBox(height: 6),
                   Text(widget.coffee.name,
                       style: const TextStyle(
-                          color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
+                          color: Colors.white,
+                          fontSize: 30,
+                          fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
 
                   // Qty and price row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Qty control
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 10),
                         height: 47,
                         width: 130,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(30),
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withValues(alpha: 0.1),
                           border: Border.all(color: Colors.white24),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             GestureDetector(
-                              onTap: () => setState(() { if (_qty > 1) _qty--; }),
-                              child: const Icon(CupertinoIcons.minus, color: Colors.white),
+                              onTap: () => setState(
+                                  () { if (_qty > 1) _qty--; }),
+                              child: const Icon(CupertinoIcons.minus,
+                                  color: Colors.white),
                             ),
                             Text('$_qty',
                                 style: const TextStyle(
-                                    fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white)),
                             GestureDetector(
                               onTap: () => setState(() => _qty++),
-                              child: const Icon(Icons.add, color: Colors.white),
+                              child: const Icon(Icons.add,
+                                  color: Colors.white),
                             ),
                           ],
                         ),
                       ),
-                      Text('Rs ${(widget.coffee.price * _qty).toStringAsFixed(2)}',
+                      Text(
+                          'Rs ${(widget.coffee.price * _qty).toStringAsFixed(2)}',
                           style: const TextStyle(
                               color: Colors.deepOrange,
                               fontSize: 30,
@@ -163,7 +227,10 @@ class _ProductViewScreenState extends State<ProductViewScreen> {
                   const SizedBox(height: 16),
                   Text(widget.coffee.description,
                       style: const TextStyle(
-                          color: Colors.white70, fontSize: 16, letterSpacing: 1, height: 1.5)),
+                          color: Colors.white70,
+                          fontSize: 16,
+                          letterSpacing: 1,
+                          height: 1.5)),
                   const SizedBox(height: 30),
 
                   SizedBox(
@@ -172,12 +239,15 @@ class _ProductViewScreenState extends State<ProductViewScreen> {
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.deepOrangeAccent,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
                       ),
                       onPressed: _addToCart,
                       child: const Text('Add to Cart',
                           style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white)),
                     ),
                   ),
                 ],

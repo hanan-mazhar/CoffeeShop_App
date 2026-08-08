@@ -79,7 +79,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.deepOrange.withOpacity(0.2),
+                          color: Colors.deepOrange.withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.deepOrange, width: 2),
                         ),
@@ -113,7 +113,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 // Password field
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
+                    color: Colors.white.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: Colors.white12),
                   ),
@@ -187,7 +187,7 @@ class _SignupScreenState extends State<SignupScreen> {
       {TextInputType? keyboardType, int maxLines = 1}) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white12),
       ),

@@ -90,7 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               CircleAvatar(
                 radius: 55,
-                backgroundColor: Colors.deepOrange.withOpacity(0.2),
+                backgroundColor: Colors.deepOrange.withValues(alpha: 0.2),
                 child: const Icon(Icons.person, size: 60, color: Colors.deepOrange),
               ),
             ],
@@ -105,9 +105,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.deepOrange.withOpacity(0.2),
+              color: Colors.deepOrange.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.deepOrange.withOpacity(0.5)),
+              border: Border.all(color: Colors.deepOrange.withValues(alpha: 0.5)),
             ),
             child: Text(
               _user?.role == 'admin' ? '👑 Admin' : '☕ Coffee Lover',
@@ -120,7 +120,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.07),
+              color: Colors.white.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white12),
             ),
@@ -213,9 +213,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         editable
             ? Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.08),
+                  color: Colors.white.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.deepOrange.withOpacity(0.4)),
+                  border: Border.all(color: Colors.deepOrange.withValues(alpha: 0.4)),
                 ),
                 child: TextField(
                   controller: controller,
@@ -263,7 +263,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.07),
+          color: Colors.white.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.white12),
         ),
@@ -272,7 +272,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
+                color: color.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 22),

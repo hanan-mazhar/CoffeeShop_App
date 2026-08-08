@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../Models/coffee_model.dart';
 import '../../Models/order_model.dart';
 import '../../Services/cart_provider.dart';
+import '../../Services/cloudinary_service.dart';
 import '../../Services/coffee_service.dart';
 import 'product_view_screen.dart';
 
@@ -14,7 +15,6 @@ class CoffeeGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // If search results passed directly, skip stream
     if (searchResults != null) {
       return _buildGrid(context, searchResults!);
     }
@@ -43,7 +43,6 @@ class CoffeeGrid extends StatelessWidget {
 
   Widget _buildGrid(BuildContext context, List<CoffeeModel> coffees) {
     final screenWidth = MediaQuery.of(context).size.width;
-    // Responsive: 2 columns on small, 3 on tablets
     final crossCount = screenWidth > 600 ? 3 : 2;
     final childAspect = screenWidth > 600 ? 0.75 : 0.72;
 
@@ -88,19 +87,7 @@ class _CoffeeCard extends StatelessWidget {
             ClipRRect(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(16)),
-              child: Image.asset(
-                coffee.image,
-                height: imgHeight,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  height: imgHeight,
-                  color: Colors.deepOrange.withOpacity(0.2),
-                  child: const Center(
-                      child: Icon(Icons.coffee,
-                          color: Colors.deepOrange, size: 40)),
-                ),
-              ),
+              child: _buildCoffeeImage(coffee.image, imgHeight),
             ),
             Expanded(
               child: Padding(
@@ -171,6 +158,37 @@ class _CoffeeCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// Smart image: Cloudinary/network URL → Image.network, else Image.asset
+  Widget _buildCoffeeImage(String path, double height) {
+    final placeholder = Container(
+      height: height,
+      width: double.infinity,
+      color: Colors.deepOrange.withValues(alpha: 0.2),
+      child: const Center(
+          child: Icon(Icons.coffee, color: Colors.deepOrange, size: 40)),
+    );
+
+    if (CloudinaryService.isNetworkUrl(path)) {
+      return Image.network(
+        path,
+        height: height,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        loadingBuilder: (_, child, progress) =>
+            progress == null ? child : placeholder,
+        errorBuilder: (_, _, _) => placeholder,
+      );
+    }
+
+    return Image.asset(
+      path,
+      height: height,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => placeholder,
     );
   }
 }

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -6,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../Models/order_model.dart';
 import '../Services/auth_service.dart';
 import '../Services/cart_provider.dart';
+import '../Services/cloudinary_service.dart';
 import '../Services/order_service.dart';
 import '../Services/payment_service.dart';
 import 'order_tracking_screen.dart';
@@ -34,31 +34,38 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
+    if (!mounted) return;
     setState(() => _placing = true);
 
-    final order = OrderModel(
-      id: '',
-      userId: user.uid,
-      userName: userData.name,
-      userAddress: userData.address,
-      userPhone: userData.phone,
-      items: List.from(cart.items),
-      totalAmount: cart.totalAmount,
-      status: 'pending',
-      createdAt: DateTime.now(),
-      paymentMethod: 'cod',
-      paymentStatus: 'pending',
-    );
+    try {
+      final order = OrderModel(
+        id: '',
+        userId: user.uid,
+        userName: userData.name,
+        userAddress: userData.address,
+        userPhone: userData.phone,
+        items: List.from(cart.items),
+        totalAmount: cart.totalAmount,
+        status: 'pending',
+        createdAt: DateTime.now(),
+        paymentMethod: 'cod',
+        paymentStatus: 'pending',
+      );
 
-    final orderId = await OrderService().placeOrder(order);
-    setState(() => _placing = false);
+      final orderId = await OrderService().placeOrder(order);
+      if (!mounted) return;
 
-    if (orderId != null && mounted) {
-      cart.clearCart();
-      Navigator.push(context,
-          MaterialPageRoute(builder: (_) => OrderTrackingScreen(orderId: orderId)));
-    } else if (mounted) {
-      _snack('Order could not be placed. Please try again.');
+      if (orderId != null) {
+        cart.clearCart();
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => OrderTrackingScreen(orderId: orderId)));
+      } else {
+        _snack('Order could not be placed. Please try again.');
+      }
+    } catch (e) {
+      if (mounted) _snack('Something went wrong: $e');
+    } finally {
+      if (mounted) setState(() => _placing = false);
     }
   }
 
@@ -80,65 +87,89 @@ class _CartScreenState extends State<CartScreen> {
     final number = _selectedPayment == 'jazzcash'
         ? paymentNumbers['jazzcash']
         : paymentNumbers['easypaisa'];
+    final accountName = _selectedPayment == 'jazzcash'
+        ? paymentNumbers['jazzcash_name']
+        : paymentNumbers['easypaisa_name'];
 
     if (number == null || number.isEmpty) {
       _snack('Payment number not configured. Please contact admin.');
       return;
     }
 
-    // Show payment instructions dialog
-    final result = await showDialog<Map<String, String>>(
+    // Show payment instructions dialog — returns transactionId + picked File
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
       builder: (_) => _PaymentInstructionsDialog(
         method: _selectedPayment,
         number: number,
+        accountName: accountName ?? '',
         amount: cart.totalAmount,
       ),
     );
 
     if (result == null || !mounted) return;
 
+    if (!mounted) return;
     setState(() => _placing = true);
 
-    // Create order first
-    final order = OrderModel(
-      id: '',
-      userId: user.uid,
-      userName: userData.name,
-      userAddress: userData.address,
-      userPhone: userData.phone,
-      items: List.from(cart.items),
-      totalAmount: cart.totalAmount,
-      status: 'awaiting_payment',
-      createdAt: DateTime.now(),
-      paymentMethod: _selectedPayment,
-      paymentStatus: 'proof_submitted',
-    );
+    try {
+      // Upload proof image to Cloudinary
+      String proofImageUrl = '';
+      final File? proofFile = result['proofFile'] as File?;
+      if (proofFile != null) {
+        if (mounted) _snack('Uploading payment screenshot...');
+        final url = await CloudinaryService.uploadImage(proofFile);
+        if (url == null) {
+          if (mounted) _snack('Image upload failed. Please try again.');
+          return;
+        }
+        proofImageUrl = url;
+      }
 
-    final orderId = await OrderService().placeOrder(order);
-    if (orderId == null) {
-      setState(() => _placing = false);
-      _snack('Order could not be created. Please try again.');
-      return;
+      if (!mounted) return;
+
+      // Create order
+      final order = OrderModel(
+        id: '',
+        userId: user.uid,
+        userName: userData.name,
+        userAddress: userData.address,
+        userPhone: userData.phone,
+        items: List.from(cart.items),
+        totalAmount: cart.totalAmount,
+        status: 'awaiting_payment',
+        createdAt: DateTime.now(),
+        paymentMethod: _selectedPayment,
+        paymentStatus: 'proof_submitted',
+      );
+
+      final orderId = await OrderService().placeOrder(order);
+      if (orderId == null) {
+        if (mounted) _snack('Order could not be created. Please try again.');
+        return;
+      }
+
+      // Submit payment proof
+      await PaymentService().submitPaymentProof(
+        orderId: orderId,
+        userId: user.uid,
+        method: _selectedPayment,
+        transactionId: result['transactionId'] ?? '',
+        proofImageUrl: proofImageUrl,
+      );
+
+      if (!mounted) return;
+      cart.clearCart();
+      _snack('Order placed! Waiting for payment verification ✅');
+      Navigator.push(context,
+          MaterialPageRoute(builder: (_) => OrderTrackingScreen(orderId: orderId)));
+
+    } catch (e) {
+      if (mounted) _snack('Something went wrong: $e');
+    } finally {
+      if (mounted) setState(() => _placing = false);
     }
-
-    // Submit payment proof
-    await PaymentService().submitPaymentProof(
-      orderId: orderId,
-      userId: user.uid,
-      method: _selectedPayment,
-      transactionId: result['transactionId'] ?? '',
-      proofImageBase64: result['proofImage'] ?? '',
-    );
-
-    setState(() => _placing = false);
-    if (!mounted) return;
-
-    cart.clearCart();
-    _snack('Order placed! Waiting for payment verification. ✅');
-    Navigator.push(context,
-        MaterialPageRoute(builder: (_) => OrderTrackingScreen(orderId: orderId)));
   }
 
   void _checkout(CartProvider cart) {
@@ -190,7 +221,7 @@ class _CartScreenState extends State<CartScreen> {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: EdgeInsets.all(sw * 0.035),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.07),
+                  color: Colors.white.withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.white12),
                 ),
@@ -198,16 +229,7 @@ class _CartScreenState extends State<CartScreen> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: Image.asset(item.coffeeImage,
-                          width: sw * 0.16,
-                          height: sw * 0.16,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                              width: sw * 0.16,
-                              height: sw * 0.16,
-                              color: Colors.deepOrange.withOpacity(0.2),
-                              child: const Icon(Icons.coffee,
-                                  color: Colors.deepOrange))),
+                      child: _buildCartItemImage(item.coffeeImage, sw * 0.16),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -275,7 +297,6 @@ class _CartScreenState extends State<CartScreen> {
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 10),
 
-              // Payment options row
               Row(
                 children: [
                   Expanded(
@@ -379,6 +400,37 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
+  /// Smart image widget for cart items: Cloudinary/network → Image.network, else asset
+  Widget _buildCartItemImage(String path, double size) {
+    if (CloudinaryService.isNetworkUrl(path)) {
+      return Image.network(
+        path,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        loadingBuilder: (_, child, progress) =>
+            progress == null ? child : _imgPlaceholder(size),
+        errorBuilder: (_, _, _) => _imgPlaceholder(size),
+      );
+    }
+    return Image.asset(
+      path,
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => _imgPlaceholder(size),
+    );
+  }
+
+  Widget _imgPlaceholder(double size) {
+    return Container(
+      width: size,
+      height: size,
+      color: Colors.deepOrange.withValues(alpha: 0.2),
+      child: const Icon(Icons.coffee, color: Colors.deepOrange),
+    );
+  }
+
   Widget _paymentTile({
     required String value,
     required IconData icon,
@@ -393,8 +445,8 @@ class _CartScreenState extends State<CartScreen> {
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         decoration: BoxDecoration(
           color: selected
-              ? Colors.deepOrange.withOpacity(0.18)
-              : Colors.white.withOpacity(0.05),
+              ? Colors.deepOrange.withValues(alpha: 0.18)
+              : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected ? Colors.deepOrange : Colors.white24,
@@ -431,9 +483,9 @@ class _CartScreenState extends State<CartScreen> {
         width: 30,
         height: 30,
         decoration: BoxDecoration(
-          color: Colors.deepOrange.withOpacity(0.2),
+          color: Colors.deepOrange.withValues(alpha: 0.2),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.deepOrange.withOpacity(0.5)),
+          border: Border.all(color: Colors.deepOrange.withValues(alpha: 0.5)),
         ),
         child: Icon(icon, color: Colors.deepOrange, size: 16),
       ),
@@ -445,11 +497,13 @@ class _CartScreenState extends State<CartScreen> {
 class _PaymentInstructionsDialog extends StatefulWidget {
   final String method;
   final String number;
+  final String accountName;
   final double amount;
 
   const _PaymentInstructionsDialog({
     required this.method,
     required this.number,
+    required this.accountName,
     required this.amount,
   });
 
@@ -462,11 +516,11 @@ class _PaymentInstructionsDialogState
     extends State<_PaymentInstructionsDialog> {
   final _txnController = TextEditingController();
   File? _proofImage;
-  bool _submitting = false;
+  final bool _submitting = false;
 
   Future<void> _pickImage() async {
     final picked = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, imageQuality: 60);
+        .pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (picked != null && mounted) {
       setState(() => _proofImage = File(picked.path));
     }
@@ -485,17 +539,11 @@ class _PaymentInstructionsDialogState
           backgroundColor: Colors.deepOrange));
       return;
     }
-
-    setState(() => _submitting = true);
-    final bytes = await _proofImage!.readAsBytes();
-    final base64Image = base64Encode(bytes);
-
-    if (mounted) {
-      Navigator.pop(context, {
-        'transactionId': _txnController.text.trim(),
-        'proofImage': base64Image,
-      });
-    }
+    if (!mounted) return;
+    Navigator.pop(context, {
+      'transactionId': _txnController.text.trim(),
+      'proofFile': _proofImage,
+    });
   }
 
   @override
@@ -534,9 +582,9 @@ class _PaymentInstructionsDialogState
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: methodColor.withOpacity(0.1),
+                color: methodColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: methodColor.withOpacity(0.4)),
+                border: Border.all(color: methodColor.withValues(alpha: 0.4)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -550,6 +598,20 @@ class _PaymentInstructionsDialogState
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.5)),
+                  if (widget.accountName.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.person, color: methodColor, size: 14),
+                        const SizedBox(width: 4),
+                        Text(widget.accountName,
+                            style: TextStyle(
+                                color: methodColor,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -572,7 +634,7 @@ class _PaymentInstructionsDialogState
                 style: TextStyle(
                     color: Colors.white70, fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
-            _step('1', 'Open $methodName app and send Rs. ${widget.amount.toStringAsFixed(0)}'),
+            _step('1', 'Open the $methodName app and send Rs. ${widget.amount.toStringAsFixed(0)}'),
             _step('2', 'Enter the Transaction ID below'),
             _step('3', 'Attach a screenshot of the payment'),
             _step('4', 'Tap Submit — admin will verify and confirm your order'),
@@ -586,7 +648,8 @@ class _PaymentInstructionsDialogState
               decoration: InputDecoration(
                 labelText: 'Transaction ID',
                 labelStyle: const TextStyle(color: Colors.white54),
-                prefixIcon: const Icon(Icons.tag, color: Colors.deepOrange, size: 20),
+                prefixIcon:
+                    const Icon(Icons.tag, color: Colors.deepOrange, size: 20),
                 enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(color: Colors.white24)),
@@ -604,12 +667,11 @@ class _PaymentInstructionsDialogState
                 width: double.infinity,
                 height: _proofImage != null ? 180 : 80,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: _proofImage != null
-                          ? Colors.green
-                          : Colors.white24),
+                      color:
+                          _proofImage != null ? Colors.green : Colors.white24),
                 ),
                 child: _proofImage != null
                     ? ClipRRect(
@@ -675,9 +737,9 @@ class _PaymentInstructionsDialogState
             width: 20,
             height: 20,
             decoration: BoxDecoration(
-              color: Colors.deepOrange.withOpacity(0.2),
+              color: Colors.deepOrange.withValues(alpha: 0.2),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.deepOrange.withOpacity(0.5)),
+              border: Border.all(color: Colors.deepOrange.withValues(alpha: 0.5)),
             ),
             child: Center(
               child: Text(num,
@@ -690,8 +752,7 @@ class _PaymentInstructionsDialogState
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
-                style:
-                    const TextStyle(color: Colors.white60, fontSize: 12)),
+                style: const TextStyle(color: Colors.white60, fontSize: 12)),
           ),
         ],
       ),

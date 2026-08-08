@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'Services/auth_service.dart';
 import 'Services/cart_provider.dart';
+import 'Services/notification_service.dart';
 import 'Screens/welcome_screen.dart';
 import 'Screens/home_screen.dart';
 import 'Screens/cart_screen.dart';
@@ -14,16 +15,13 @@ import 'Screens/Auth/login_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  
- 
+  // 1. Firebase init
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } catch (e) {
-    debugPrint('Firebase error: $e');
-  }
+  // 2. Notification service init (local notifications channel setup)
+  await NotificationService().init();
 
   runApp(
     MultiProvider(
@@ -57,7 +55,8 @@ class CoffeeShopApp extends StatelessWidget {
               backgroundColor: const Color(0xFF1a0a00),
               appBar: AppBar(
                 backgroundColor: const Color(0xFF2d1a00),
-                title: const Text('Cart', style: TextStyle(color: Colors.white)),
+                title: const Text('Cart',
+                    style: TextStyle(color: Colors.white)),
                 iconTheme: const IconThemeData(color: Colors.white),
               ),
               body: const CartScreen(),
@@ -95,24 +94,26 @@ class _AppRouter extends StatelessWidget {
           );
         }
 
-        if (snap.data == null) {
-          return const WelcomeScreen();
-        }
+        if (snap.data == null) return const WelcomeScreen();
 
-        // User logged in - check role
+        // User logged in → start Firestore notification listener
         return FutureBuilder(
           future: AuthService().getUserData(snap.data!.uid),
           builder: (context, userSnap) {
             if (userSnap.connectionState == ConnectionState.waiting) {
               return const Scaffold(
                 backgroundColor: Color(0xFF1a0a00),
-                body: Center(child: CircularProgressIndicator(color: Colors.deepOrange)),
+                body: Center(
+                    child:
+                        CircularProgressIndicator(color: Colors.deepOrange)),
               );
             }
             final user = userSnap.data;
-            if (user?.role == 'admin') {
-              return const AdminPanelScreen();
-            }
+
+            // ✅ Start listening to Firestore notifications (no server key needed!)
+            NotificationService().startListening(snap.data!.uid);
+
+            if (user?.role == 'admin') return const AdminPanelScreen();
             return const HomeScreen();
           },
         );

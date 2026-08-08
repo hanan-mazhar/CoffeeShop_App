@@ -69,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Colors.black87, Colors.black54, Colors.brown.shade900.withOpacity(0.8)],
+              colors: [Colors.black87, Colors.black54, Colors.brown.shade900.withValues(alpha: 0.8)],
             ),
           ),
           child: SafeArea(
@@ -86,7 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.deepOrange.withOpacity(0.2),
+                            color: Colors.deepOrange.withValues(alpha: 0.2),
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.deepOrange, width: 2),
                           ),
@@ -197,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white12),
       ),

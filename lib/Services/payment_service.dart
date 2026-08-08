@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'notification_service.dart';
 
 class PaymentService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -11,22 +12,38 @@ class PaymentService {
         final data = doc.data()!;
         return {
           'jazzcash': data['jazzcash'] ?? '',
+          'jazzcash_name': data['jazzcash_name'] ?? '',
           'easypaisa': data['easypaisa'] ?? '',
+          'easypaisa_name': data['easypaisa_name'] ?? '',
         };
       }
-      return {'jazzcash': '', 'easypaisa': ''};
+      return {
+        'jazzcash': '',
+        'jazzcash_name': '',
+        'easypaisa': '',
+        'easypaisa_name': ''
+      };
     } catch (e) {
-      return {'jazzcash': '', 'easypaisa': ''};
+      return {
+        'jazzcash': '',
+        'jazzcash_name': '',
+        'easypaisa': '',
+        'easypaisa_name': ''
+      };
     }
   }
 
   Future<void> updatePaymentNumbers({
     required String jazzcash,
+    required String jazzcashName,
     required String easypaisa,
+    required String easypaisaName,
   }) async {
     await _db.collection('settings').doc('payment').set({
       'jazzcash': jazzcash,
+      'jazzcash_name': jazzcashName,
       'easypaisa': easypaisa,
+      'easypaisa_name': easypaisaName,
       'updatedAt': DateTime.now().millisecondsSinceEpoch,
     });
   }
@@ -37,39 +54,97 @@ class PaymentService {
         .doc('payment')
         .snapshots()
         .map((doc) {
-      if (!doc.exists) return {'jazzcash': '', 'easypaisa': ''};
+      if (!doc.exists) {
+        return {
+          'jazzcash': '',
+          'jazzcash_name': '',
+          'easypaisa': '',
+          'easypaisa_name': ''
+        };
+      }
       final data = doc.data()!;
       return {
         'jazzcash': data['jazzcash'] ?? '',
+        'jazzcash_name': data['jazzcash_name'] ?? '',
         'easypaisa': data['easypaisa'] ?? '',
+        'easypaisa_name': data['easypaisa_name'] ?? '',
       };
     });
   }
 
-  // ── Submit Payment Proof ───────────────────────────────────────────────────
+  // ── Submit Payment Proof → notify admins ───────────────────────────────────
   Future<void> submitPaymentProof({
     required String orderId,
     required String userId,
     required String method,
     required String transactionId,
-    required String proofImageBase64,
+    required String proofImageUrl,
   }) async {
+    // Get order amount and user name for notification
+    String userName = '';
+    double amount = 0;
+    try {
+      final doc = await _db.collection('orders').doc(orderId).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        userName = data['userName'] ?? '';
+        amount = (data['totalAmount'] ?? 0).toDouble();
+      }
+    } catch (_) {}
+
+    // Update Firestore
     await _db.collection('orders').doc(orderId).update({
       'paymentMethod': method,
       'paymentStatus': 'proof_submitted',
       'transactionId': transactionId,
-      'proofImageBase64': proofImageBase64,
+      'proofImageUrl': proofImageUrl,
+      'proofImageBase64': FieldValue.delete(),
       'proofSubmittedAt': DateTime.now().millisecondsSinceEpoch,
     });
+
+    // Notify all admins
+    await NotificationService().notifyAdminsPaymentProof(
+      userName: userName,
+      method: method,
+      amount: amount,
+    );
   }
 
-  // ── Admin: Verify or Reject Payment ───────────────────────────────────────
+  // ── Admin: Verify or Reject Payment → notify user ─────────────────────────
   Future<void> verifyPayment(String orderId, bool approved) async {
+    // Get order details for notification
+    String userId = '';
+    double amount = 0;
+    try {
+      final doc = await _db.collection('orders').doc(orderId).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        userId = data['userId'] ?? '';
+        amount = (data['totalAmount'] ?? 0).toDouble();
+      }
+    } catch (_) {}
+
+    // Update Firestore
     await _db.collection('orders').doc(orderId).update({
       'paymentStatus': approved ? 'paid' : 'rejected',
       if (approved) 'status': 'confirmed',
       'verifiedAt': DateTime.now().millisecondsSinceEpoch,
     });
+
+    // Notify user
+    if (userId.isNotEmpty) {
+      if (approved) {
+        await NotificationService().notifyUserPaymentApproved(
+          userId: userId,
+          amount: amount,
+        );
+      } else {
+        await NotificationService().notifyUserPaymentRejected(
+          userId: userId,
+          amount: amount,
+        );
+      }
+    }
   }
 
   // ── Streams ────────────────────────────────────────────────────────────────
@@ -106,7 +181,7 @@ class PaymentRecord {
   final String method;
   final String status;
   final String? transactionId;
-  final String? proofImageBase64;
+  final String? proofImageUrl;
   final DateTime createdAt;
 
   PaymentRecord({
@@ -116,7 +191,7 @@ class PaymentRecord {
     required this.method,
     required this.status,
     this.transactionId,
-    this.proofImageBase64,
+    this.proofImageUrl,
     required this.createdAt,
   });
 
@@ -128,7 +203,7 @@ class PaymentRecord {
       method: map['paymentMethod'] ?? 'cod',
       status: map['paymentStatus'] ?? 'pending',
       transactionId: map['transactionId'],
-      proofImageBase64: map['proofImageBase64'],
+      proofImageUrl: map['proofImageUrl'] ?? map['proofImageBase64'],
       createdAt: map['createdAt'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['createdAt'])
           : DateTime.now(),
