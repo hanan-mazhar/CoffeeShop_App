@@ -168,7 +168,7 @@ My responsibilities included:
 
 ## 📷 Screenshots
 
-> Add screenshots inside the `/screenshots` folder and update this section.
+
 
 ```
 screenshots/
